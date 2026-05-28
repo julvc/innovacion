@@ -25,13 +25,14 @@ if exist "env\Scripts\activate.bat" (
 ) else (
     echo Creando entorno virtual 'env'...
     python -m venv env
-    if %errorlevel% neq 0 (
-        echo [ERROR] No se pudo crear el entorno virtual.
-        pause
-        exit /b 1
-    )
-    echo [OK] Entorno virtual creado.
 )
+
+if not exist "env\Scripts\activate.bat" (
+    echo [ERROR] No se pudo crear el entorno virtual.
+    pause
+    exit /b 1
+)
+echo [OK] Entorno virtual verificado.
 
 REM ── Activar entorno ──────────────────────────────────────────
 call env\Scripts\activate.bat
