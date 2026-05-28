@@ -8,7 +8,6 @@ Fecha   : Mayo 2026
 from __future__ import annotations
 
 import os
-import re
 import sys
 import json
 import threading
@@ -94,22 +93,28 @@ F_SECTION    = ("Segoe UI", 13, "bold")
 # ——— Helpers de recursos ——————————————————————————————————————
 def _resource(filename: str) -> str:
     base = getattr(sys, "_MEIPASS", Path(__file__).resolve().parent)
-    return str(Path(base) / filename)
+    p = Path(base) / filename
+    if not p.exists() and (Path(base) / "assets" / filename).exists():
+        return str(Path(base) / "assets" / filename)
+    return str(p)
 
 
 def _set_window_icon(root: tk.Tk) -> None:
-    for candidate in ["DF 500X500 BLANCO 1.png", "icon.ico"]:
-        try:
-            p = _resource(candidate)
-            if Path(p).is_file():
-                if p.endswith(".ico"):
-                    root.iconbitmap(p)
-                else:
-                    img = tk.PhotoImage(file=p)
-                    root.iconphoto(True, img)
-                return
-        except Exception:
-            pass
+    try:
+        p = _resource("DF 500X500 BLANCO 1.png")
+        if Path(p).is_file():
+            img = tk.PhotoImage(file=p)
+            root.iconphoto(True, img)
+            return
+    except Exception:
+        pass
+    try:
+        p = _resource("icon.ico")
+        if Path(p).is_file():
+            root.iconbitmap(p)
+            return
+    except Exception:
+        pass
 
 
 # ——— Helpers de UI (identicos a app referencia) ———————————————
@@ -188,20 +193,24 @@ def _labeled_entry(parent: tk.Frame, label: str,
 
 
 def _draw_doc_icon(canvas: tk.Canvas) -> None:
-    """Icono de documento con lapiz para el header."""
+    """Icono de libro abierto para el header."""
     canvas.delete("all")
-    # Pagina
-    canvas.create_rectangle(14, 8, 62, 80, fill="white", outline="#90CAF9", width=2)
-    # Doblez esquina
-    canvas.create_polygon(50, 8, 62, 20, 62, 8, fill="#BBDEFB", outline="#90CAF9")
-    # Lineas de texto
-    for y in [28, 36, 44, 52, 60]:
-        w = 34 if y < 52 else 24
-        canvas.create_line(20, y, 20 + w, y, fill="#1565C0", width=2, capstyle=tk.ROUND)
-    # Lapiz
-    canvas.create_polygon(60, 60, 88, 32, 92, 36, 64, 64, fill="#FDD835", outline="#F9A825")
-    canvas.create_polygon(60, 60, 64, 64, 58, 72, fill="#90A4AE", outline="#607D8B")
-    canvas.create_line(88, 32, 92, 36, fill="#E65100", width=2)
+    # Sombra libro
+    canvas.create_rectangle(10, 18, 86, 82, fill="#0A3880", outline="", width=0)
+    # Pagina izquierda
+    canvas.create_rectangle(8, 14, 48, 80, fill="white", outline="#90CAF9", width=1)
+    # Pagina derecha
+    canvas.create_rectangle(48, 14, 88, 80, fill="#E3F2FD", outline="#90CAF9", width=1)
+    # Lomo central
+    canvas.create_rectangle(45, 10, 51, 84, fill="#BBDEFB", outline="#64B5F6", width=1)
+    # Lineas texto pagina izquierda
+    for y in [26, 33, 40, 47, 54, 61, 68]:
+        canvas.create_line(14, y, 42, y, fill="#1565C0", width=1, capstyle=tk.ROUND)
+    # Lineas texto pagina derecha
+    for y in [26, 33, 40, 47, 54, 61, 68]:
+        canvas.create_line(54, y, 82, y, fill="#90A4AE", width=1, capstyle=tk.ROUND)
+    # Curva lomo inferior
+    canvas.create_arc(38, 70, 58, 90, start=0, extent=180, fill="#90CAF9", outline="#64B5F6")
 
 
 # ——— Tooltip simple ——————————————————————————————————————————
@@ -298,14 +307,16 @@ class DocumentadorApp:
                     borderwidth=0, tabmargins=[0, 0, 0, 0])
         s.configure("Doc.TNotebook.Tab",
                     background=COL["btn_dark"],
-                    foreground="white",
-                    font=("Segoe UI", 10, "bold"),
-                    padding=[18, 8])
+                    foreground="#90A4AE",
+                    font=("Segoe UI", 9),
+                    padding=[14, 5])
         s.map("Doc.TNotebook.Tab",
               background=[("selected", COL["primary"]),
                           ("active",   COL["accent"])],
               foreground=[("selected", "white"),
-                          ("active",   "white")])
+                          ("active",   "white")],
+              font=[("selected", ("Segoe UI", 11, "bold"))],
+              padding=[("selected", [22, 10])])
 
         s.configure("Treeview",
                     background=COL["card"],
@@ -346,20 +357,7 @@ class DocumentadorApp:
 
         cv = tk.Canvas(iw, width=96, height=96, bg=COL["header"], highlightthickness=0)
         cv.pack()
-        loaded = False
-        for fname in ["DF 500X500 BLANCO 1.png"]:
-            try:
-                p = _resource(fname)
-                if Path(p).is_file():
-                    img = tk.PhotoImage(file=p).subsample(8, 8)
-                    cv.create_image(48, 48, image=img, anchor="center")
-                    cv._icon_img = img
-                    loaded = True
-                    break
-            except Exception:
-                pass
-        if not loaded:
-            _draw_doc_icon(cv)
+        _draw_doc_icon(cv)
 
         titles = tk.Frame(hc, bg=COL["header"])
         titles.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -668,11 +666,9 @@ class DocumentadorApp:
         tk.Label(cl, text="Proveedor de IA", font=F_LABEL,
                  fg=COL["text"], bg=COL["card"]).pack(anchor="w", pady=(0, 3))
         self.ai_provider_var = tk.StringVar(value=AI_PROVIDERS[0])
-        _ai_combo = ttk.Combobox(cl, textvariable=self.ai_provider_var,
-                                 values=AI_PROVIDERS, state="readonly",
-                                 font=F_BODY)
-        _ai_combo.pack(fill=tk.X, pady=(0, 10))
-        _ai_combo.bind("<<ComboboxSelected>>", self._on_provider_change)
+        ttk.Combobox(cl, textvariable=self.ai_provider_var,
+                     values=AI_PROVIDERS, state="readonly",
+                     font=F_BODY).pack(fill=tk.X, pady=(0, 10))
 
         tk.Label(cl, text="Modelo", font=F_LABEL,
                  fg=COL["text"], bg=COL["card"]).pack(anchor="w", pady=(0, 3))
@@ -734,10 +730,9 @@ class DocumentadorApp:
         _card_title(cr, "ESTADO DE CONEXION IA")
 
         self.ai_status_var = tk.StringVar(value="Sin configurar")
-        self.ai_status_lbl = tk.Label(cr, textvariable=self.ai_status_var,
-                                      font=F_STATUS, fg=COL["warn"], bg=COL["card"],
-                                      anchor="w")
-        self.ai_status_lbl.pack(fill=tk.X, pady=(0, 10))
+        tk.Label(cr, textvariable=self.ai_status_var,
+                 font=F_STATUS, fg=COL["warn"], bg=COL["card"],
+                 anchor="w").pack(fill=tk.X, pady=(0, 10))
 
         self.ai_log = scrolledtext.ScrolledText(
             cr, font=F_LOG, wrap=tk.WORD,
@@ -778,18 +773,6 @@ class DocumentadorApp:
                            selectcolor=COL["card"],
                            activebackground=COL["card"],
                            command=self._refresh_preview).pack(side=tk.LEFT, padx=(0, 16))
-
-        tk.Frame(btn_row, width=1, bg=COL["sep"]).pack(side=tk.LEFT, fill=tk.Y, padx=8, pady=2)
-        tk.Label(btn_row, text="Vista:", font=F_HELP,
-                 fg=COL["text_secondary"], bg=COL["card"]).pack(side=tk.LEFT, padx=(0, 4))
-        self.preview_render_var = tk.StringVar(value="Formateado")
-        for rmode in ["Texto", "Formateado"]:
-            tk.Radiobutton(btn_row, text=rmode, variable=self.preview_render_var,
-                           value=rmode, font=F_BODY,
-                           bg=COL["card"], fg=COL["text"],
-                           selectcolor=COL["card"],
-                           activebackground=COL["card"],
-                           command=self._refresh_preview).pack(side=tk.LEFT, padx=(0, 8))
 
         _flat_btn(btn_row, "Refrescar", COL["btn_dark"], COL["btn_dark_active"],
                   command=self._refresh_preview).pack(side=tk.RIGHT, padx=(8, 0))
@@ -1149,70 +1132,8 @@ class DocumentadorApp:
         if event.char or event.keysym in ("BackSpace", "Delete", "Return"):
             self._mark_modified()
 
-    def _get_ai_credentials(self) -> tuple[str, str, str, str]:
-        """Returns (provider, model, base_url, key) — key from keyring fallback if entry empty."""
-        provider = self.ai_provider_var.get()
-        model    = self.ai_model_var.get().strip()
-        base_url = self.ai_base_url_var.get().strip()
-        key      = self.ai_key_var.get().strip()
-        if not key:
-            try:
-                import keyring as _kr
-                key = _kr.get_password("documentador_ia", provider) or ""
-            except Exception:
-                pass
-        return provider, model, base_url, key
-
     def _on_ai_section(self) -> None:
-        if not self._ai_configured.get():
-            messagebox.showwarning(
-                "IA no configurada",
-                "Configure primero el proveedor de IA en la pestaña 'Config. IA'.",
-                parent=self.root)
-            return
-        if not self._current_section_id or not self.current_project:
-            return
-        if not self.sections_tree.parent(self._current_section_id):
-            return
-
-        section_id = self._current_section_id
-        content    = self.section_editor.get("1.0", tk.END).strip()
-        provider, model, base_url, key = self._get_ai_credentials()
-        if not key:
-            messagebox.showwarning("Sin API Key", "No hay clave API configurada.", parent=self.root)
-            return
-
-        self.progress.start(10)
-        self.set_status(f"Enriqueciendo '{section_id}' con IA...", "info")
-        _set_btn_state(self.btn_ai_section, False)
-        threading.Thread(
-            target=self._enrich_section_thread,
-            args=(section_id, content, provider, model, base_url, key),
-            daemon=True,
-        ).start()
-
-    def _enrich_section_thread(self, section_id: str, content: str,
-                                provider: str, model: str, base_url: str, key: str) -> None:
-        try:
-            from ai_connector import enrich_section
-            enriched = enrich_section(
-                provider, model, base_url, key,
-                self.current_project.get("name", ""),
-                section_id, content,
-                self.current_project.get("type", "Web"),
-            )
-            def _apply():
-                self.section_editor.delete(1.0, tk.END)
-                self.section_editor.insert(tk.END, enriched)
-                self._mark_modified()
-                self.set_status(f"'{section_id}' enriquecida con IA.", "success")
-                _set_btn_state(self.btn_ai_section, True)
-            self.root.after(0, _apply)
-        except Exception as exc:
-            self.root.after(0, lambda: self.set_status(f"Error IA: {exc}", "error"))
-            self.root.after(0, lambda: _set_btn_state(self.btn_ai_section, True))
-        finally:
-            self.root.after(0, self.progress.stop)
+        messagebox.showinfo("IA", "Funcion de IA por secciones disponible en Paso 8.", parent=self.root)
 
     # ── Toolbar Markdown ──────────────────────────────────────────
     def _md_insert(self, text: str) -> None:
@@ -1363,55 +1284,19 @@ class DocumentadorApp:
             self._log_ai(f"Error al guardar en llavero: {e}")
 
         self._log_ai(f"Probando conexion con {provider} / {model}...")
-        self.progress.start(10)
-        threading.Thread(
-            target=self._test_ai_thread,
-            args=(provider, model, base_url, key),
-            daemon=True,
-        ).start()
+        self.root.after(100, lambda: self._test_ai_connection(provider, model, base_url, key))
 
-    def _test_ai_thread(self, provider: str, model: str, base_url: str, key: str) -> None:
+    def _test_ai_connection(self, provider: str, model: str, base_url: str, key: str) -> None:
         from ai_connector import test_connection
         ok, msg = test_connection(provider, model, base_url, key)
         if ok:
-            self.root.after(0, lambda: self._set_ai_status(f"Conectado: {provider} / {model}", "success"))
-            self.root.after(0, lambda: self._log_ai(f"OK — Conexion exitosa: {msg}"))
-            self.root.after(0, lambda: self._ai_configured.set(True))
-            self.root.after(0, self._enable_ai_buttons)
+            self.ai_status_var.set(f"Conectado: {provider} / {model}")
+            self._log_ai(f"OK — Conexion exitosa: {msg}")
+            self._ai_configured.set(True)
+            self._enable_ai_buttons()
         else:
-            self.root.after(0, lambda: self._set_ai_status(f"Error de conexion: {provider}", "error"))
-            self.root.after(0, lambda: self._log_ai(f"ERROR — {msg}"))
-        self.root.after(0, self.progress.stop)
-
-    def _set_ai_status(self, msg: str, kind: str = "info") -> None:
-        _colors = {"info": COL["warn"], "success": COL["success"], "error": COL["danger"]}
-        self.ai_status_var.set(msg)
-        if hasattr(self, "ai_status_lbl"):
-            self.ai_status_lbl.config(fg=_colors.get(kind, COL["warn"]))
-
-    def _on_provider_change(self, _evt=None) -> None:
-        _defaults = {
-            "OpenAI (GPT-4)":     "gpt-4o",
-            "Anthropic (Claude)": "claude-3-5-haiku-20241022",
-            "Google (Gemini)":    "gemini-1.5-flash",
-            "Ollama (local)":     "llama3",
-        }
-        prov = self.ai_provider_var.get()
-        self.ai_model_var.set(_defaults.get(prov, ""))
-        try:
-            import keyring
-            key = keyring.get_password("documentador_ia", prov) or ""
-            self.ai_key_var.set(key)
-            if key:
-                self._log_ai(f"Clave cargada desde llavero para: {prov}")
-                self._set_ai_status(f"Clave cargada: {prov}", "info")
-            else:
-                self.ai_key_var.set("")
-                self._set_ai_status("Sin configurar", "info")
-        except ImportError:
-            pass
-        except Exception:
-            pass
+            self.ai_status_var.set(f"Error de conexion: {provider}")
+            self._log_ai(f"ERROR — {msg}")
 
     def _on_clear_ai_key(self) -> None:
         if not messagebox.askyesno("Limpiar", "Eliminar la clave API guardada?", parent=self.root):
@@ -1444,96 +1329,19 @@ class DocumentadorApp:
         if not self.current_project:
             return
         from doc_generator import render_preview
-        mode  = self.preview_mode_var.get()
-        text  = render_preview(self.current_project, mode)
-        rmode = getattr(self, "preview_render_var", None)
-        if rmode and rmode.get() == "Formateado":
-            self._render_formatted(text)
-        else:
-            self.preview_text.config(state=tk.NORMAL)
-            self.preview_text.delete(1.0, tk.END)
-            self.preview_text.insert(tk.END, text)
-            self.preview_text.config(state=tk.DISABLED)
-        self.set_status(f"Vista previa — {mode}", "info")
+        mode = self.preview_mode_var.get()
+        text = render_preview(self.current_project, mode)
+        self.preview_text.config(state=tk.NORMAL)
+        self.preview_text.delete(1.0, tk.END)
+        self.preview_text.insert(tk.END, text)
+        self.preview_text.config(state=tk.DISABLED)
+        self.set_status(f"Vista previa actualizada — modo: {mode}", 'info')
 
     def _copy_preview(self) -> None:
         content = self.preview_text.get("1.0", tk.END)
         self.root.clipboard_clear()
         self.root.clipboard_append(content)
         self.set_status('Contenido copiado al portapapeles.', 'success')
-
-    def _render_formatted(self, md_text: str) -> None:
-        """Render Markdown in preview_text using tkinter text tags."""
-        w = self.preview_text
-        w.config(state=tk.NORMAL)
-        w.delete(1.0, tk.END)
-
-        w.tag_configure("h1",        font=("Segoe UI", 20, "bold"), foreground=COL["header"],
-                        spacing1=10, spacing3=6)
-        w.tag_configure("h2",        font=("Segoe UI", 15, "bold"), foreground=COL["primary"],
-                        spacing1=8,  spacing3=4)
-        w.tag_configure("h3",        font=("Segoe UI", 12, "bold"), foreground=COL["accent"],
-                        spacing1=6,  spacing3=2)
-        w.tag_configure("bold",      font=("Segoe UI", 10, "bold"))
-        w.tag_configure("italic",    font=("Segoe UI", 10, "italic"))
-        w.tag_configure("code_inline", font=("Consolas", 9),
-                        background="#ECEFF1", foreground="#C62828")
-        w.tag_configure("codeblock", font=("Consolas", 9),
-                        background="#ECEFF1", foreground=COL["text"],
-                        lmargin1=24, lmargin2=24, spacing1=1, spacing3=1)
-        w.tag_configure("blockquote", font=("Segoe UI", 10, "italic"),
-                        foreground=COL["text_secondary"], lmargin1=20, lmargin2=20)
-        w.tag_configure("bullet",    lmargin1=18, lmargin2=28)
-        w.tag_configure("sep",       foreground=COL["sep_light"])
-        w.tag_configure("normal",    font=F_BODY, foreground=COL["text"])
-
-        in_code = False
-        for raw_line in md_text.split("\n"):
-            if raw_line.strip().startswith("```"):
-                in_code = not in_code
-                if not in_code:
-                    w.insert(tk.END, "\n")
-                continue
-            if in_code:
-                w.insert(tk.END, raw_line + "\n", "codeblock")
-                continue
-
-            if raw_line.startswith("# "):
-                w.insert(tk.END, raw_line[2:] + "\n", "h1")
-            elif raw_line.startswith("## "):
-                w.insert(tk.END, raw_line[3:] + "\n", "h2")
-            elif raw_line.startswith("### "):
-                w.insert(tk.END, raw_line[4:] + "\n", "h3")
-            elif raw_line.startswith("> "):
-                w.insert(tk.END, "  " + raw_line[2:] + "\n", "blockquote")
-            elif raw_line.startswith("- ") or raw_line.startswith("* "):
-                w.insert(tk.END, "  • ")
-                self._inline_insert(w, raw_line[2:] + "\n", "bullet")
-            elif re.match(r"^-{3,}$", raw_line.strip()):
-                w.insert(tk.END, "─" * 72 + "\n", "sep")
-            elif raw_line == "":
-                w.insert(tk.END, "\n")
-            else:
-                self._inline_insert(w, raw_line + "\n", "normal")
-
-        w.config(state=tk.DISABLED)
-
-    def _inline_insert(self, w: tk.Text, text: str, base_tag: str) -> None:
-        """Insert text with inline bold/italic/code tags into widget w."""
-        _PAT = re.compile(r"\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`")
-        pos = 0
-        for m in _PAT.finditer(text):
-            if pos < m.start():
-                w.insert(tk.END, text[pos:m.start()], base_tag)
-            if m.group().startswith("**"):
-                w.insert(tk.END, m.group(1), "bold")
-            elif m.group().startswith("*"):
-                w.insert(tk.END, m.group(2), "italic")
-            else:
-                w.insert(tk.END, m.group(3), "code_inline")
-            pos = m.end()
-        if pos < len(text):
-            w.insert(tk.END, text[pos:], base_tag)
 
     # ── Generar + Exportar ────────────────────────────────────────
     def _on_generate(self) -> None:
@@ -1556,90 +1364,7 @@ class DocumentadorApp:
             self.root.after(0, self.progress.stop)
 
     def _on_enrich_ai(self) -> None:
-        if not self._ai_configured.get():
-            messagebox.showwarning(
-                "IA no configurada",
-                "Configure primero el proveedor de IA en la pestaña 'Config. IA'.",
-                parent=self.root)
-            return
-        if not self.current_project:
-            return
-
-        from project_manager import get_sections_for_type
-        sections_def = get_sections_for_type(
-            self.current_project.get("type", "Web"),
-            self.current_project.get("profile", "Ambos"),
-        )
-        filled = [
-            sid for grp in sections_def.values() for sid in grp
-            if self.current_project.get("sections", {}).get(sid, "").strip()
-        ]
-        if not filled:
-            messagebox.showinfo("Sin contenido",
-                                "No hay secciones con contenido para enriquecer.",
-                                parent=self.root)
-            return
-
-        if not messagebox.askyesno(
-            "Enriquecer con IA",
-            f"Se enriquecerán {len(filled)} secciones usando {self.ai_provider_var.get()}.\n"
-            f"Esto realizará {len(filled)} llamadas a la API.\n\n¿Continuar?",
-            parent=self.root,
-        ):
-            return
-
-        provider, model, base_url, key = self._get_ai_credentials()
-        if not key:
-            messagebox.showwarning("Sin API Key", "No hay clave API configurada.", parent=self.root)
-            return
-
-        self.progress.start(10)
-        _set_btn_state(self.btn_enrich_ai, False)
-        self.set_status(f"Enriqueciendo {len(filled)} secciones con IA...", "info")
-        threading.Thread(
-            target=self._enrich_all_thread,
-            args=(filled, provider, model, base_url, key),
-            daemon=True,
-        ).start()
-
-    def _enrich_all_thread(self, section_ids: list, provider: str, model: str,
-                            base_url: str, key: str) -> None:
-        from ai_connector import enrich_section
-        total  = len(section_ids)
-        errors = []
-        for i, sid in enumerate(section_ids, 1):
-            self.root.after(0, lambda s=sid, n=i: self.set_status(
-                f"IA: '{s}' ({n}/{total})...", "info"))
-            try:
-                content  = self.current_project.get("sections", {}).get(sid, "")
-                enriched = enrich_section(
-                    provider, model, base_url, key,
-                    self.current_project.get("name", ""),
-                    sid, content,
-                    self.current_project.get("type", "Web"),
-                )
-                def _save(s=sid, e=enriched):
-                    if "sections" not in self.current_project:
-                        self.current_project["sections"] = {}
-                    self.current_project["sections"][s] = e
-                    self._save_project_file()
-                self.root.after(0, _save)
-            except Exception as exc:
-                errors.append(f"{sid}: {exc}")
-
-        def _finish():
-            self._populate_sections_tree()
-            self._populate_project_info()
-            self._update_project_progress()
-            _set_btn_state(self.btn_enrich_ai, True)
-            self.progress.stop()
-            if errors:
-                self.set_status(
-                    f"IA: {total - len(errors)}/{total} secciones OK. "
-                    f"Errores: {len(errors)}", "warn")
-            else:
-                self.set_status(f"IA: {total} secciones enriquecidas.", "success")
-        self.root.after(0, _finish)
+        messagebox.showinfo("IA", "Enriquecimiento IA disponible en Paso 8.", parent=self.root)
 
     def _on_export(self) -> None:
         if not self.current_project:
@@ -1772,4 +1497,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

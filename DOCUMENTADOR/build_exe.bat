@@ -40,6 +40,11 @@ echo Verificando dependencias...
 %VENV_PIP% install -r requirements.txt --quiet
 echo [OK] Dependencias verificadas.
 
+REM ── Cerrar proceso anterior si está corriendo ────────────────
+echo Cerrando instancias anteriores del ejecutable...
+taskkill /f /im "DocumentadorProyectos.exe" >nul 2>&1
+timeout /t 2 /nobreak >nul
+
 REM ── Limpiar builds anteriores ────────────────────────────────
 echo Limpiando builds anteriores...
 if exist "build" rmdir /s /q build
@@ -52,11 +57,26 @@ if not exist "templates\web"    mkdir templates\web
 if not exist "templates\mobile" mkdir templates\mobile
 if not exist "templates\qa"     mkdir templates\qa
 
+REM ── Regenerar icon.ico desde PNG (multi-tamaño) ──────────────
+echo Generando icon.ico desde DF 500X500 AZUL 1.png...
+%VENV_PYTHON% -c "from PIL import Image; img=Image.open('assets/DF 500X500 AZUL 1.png').convert('RGBA'); img.save('assets/icon.ico', format='ICO', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])" 2>nul
+if %errorlevel% neq 0 (
+    echo [AVISO] Pillow no disponible, usando icon.ico existente.
+) else (
+    echo [OK] icon.ico generado con multiples tamanos.
+)
+
 REM ── Compilar ─────────────────────────────────────────────────
 echo.
 echo Compilando con PyInstaller (puede tardar 1-3 minutos)...
 echo.
-%VENV_PYINSTALLER% documentador.spec --noconfirm
+
+REM Asegurar que PyInstaller encuentre Tcl/Tk desde el entorno virtual
+FOR /F "tokens=*" %%i IN ('%VENV_PYTHON% -c "import sys; print(sys.base_prefix)"') DO set "BASE_PYTHON=%%i"
+set "TCL_LIBRARY=%BASE_PYTHON%\tcl\tcl8.6"
+set "TK_LIBRARY=%BASE_PYTHON%\tcl\tk8.6"
+
+%VENV_PYINSTALLER% main.py --noconfirm --name "DocumentadorProyectos" --windowed --icon "assets\icon.ico" --hidden-import tkinter --hidden-import tkinter.ttk --add-data "assets;assets"
 
 if %errorlevel% neq 0 (
     echo.
