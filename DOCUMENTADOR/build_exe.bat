@@ -8,32 +8,36 @@ echo ====================================================
 echo.
 
 REM ── Verificar entorno virtual ────────────────────────────────
-if not exist "env\Scripts\activate.bat" (
+if not exist "env\Scripts\python.exe" (
     echo [ERROR] No se encontro el entorno virtual 'env'.
     echo Ejecuta primero: setup_dependencias.bat
     pause
     exit /b 1
 )
 
-call env\Scripts\activate.bat
-echo [OK] Entorno virtual activado.
+set "VENV_PYTHON=env\Scripts\python.exe"
+set "VENV_PIP=env\Scripts\pip.exe"
+set "VENV_PYINSTALLER=env\Scripts\pyinstaller.exe"
+echo [OK] Entorno virtual detectado.
 
 REM ── PyInstaller disponible? ──────────────────────────────────
-python -c "import PyInstaller" 2>nul
+%VENV_PYTHON% -c "import PyInstaller" 2>nul
 if %errorlevel% neq 0 (
     echo Instalando PyInstaller...
-    pip install pyinstaller
-    if %errorlevel% neq 0 (
-        echo [ERROR] No se pudo instalar PyInstaller.
-        pause
-        exit /b 1
-    )
+    %VENV_PIP% install pyinstaller
+)
+
+%VENV_PYTHON% -c "import PyInstaller" 2>nul
+if %errorlevel% neq 0 (
+    echo [ERROR] No se pudo instalar PyInstaller.
+    pause
+    exit /b 1
 )
 echo [OK] PyInstaller disponible.
 
 REM ── Dependencias del proyecto ────────────────────────────────
 echo Verificando dependencias...
-pip install -r requirements.txt --quiet
+%VENV_PIP% install -r requirements.txt --quiet
 echo [OK] Dependencias verificadas.
 
 REM ── Limpiar builds anteriores ────────────────────────────────
@@ -52,7 +56,7 @@ REM ── Compilar ────────────────────
 echo.
 echo Compilando con PyInstaller (puede tardar 1-3 minutos)...
 echo.
-pyinstaller documentador.spec --noconfirm
+%VENV_PYINSTALLER% documentador.spec --noconfirm
 
 if %errorlevel% neq 0 (
     echo.
